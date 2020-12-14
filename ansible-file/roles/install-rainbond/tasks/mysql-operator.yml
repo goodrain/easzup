@@ -1,0 +1,44 @@
+- name: 准备 mysql-operator 文件
+  unarchive: src={{ base_dir }}/rainbond/mysql-operator-chart.tgz dest=/opt/kube/rainbond
+
+- block:
+    - block:
+        - name: 检查是否已下载离线 mysql-operator 镜像
+          command: "ls {{ base_dir }}/rainbond/images"
+          register: download_info
+          connection: local
+          run_once: true
+
+        - name: 尝试推送离线 docker 镜像（若执行失败，可忽略）
+          copy: src={{ base_dir }}/rainbond/images/{{ item }} dest=/opt/kube/rainbond/images/{{ item }}
+          when: "item in download_info.stdout"
+          with_items:
+            - "mysql-operator.tgz"
+          ignore_errors: true
+
+        - name: 获取 mysql-operator 离线镜像推送情况
+          command: "ls /opt/kube/rainbond/images"
+          register: image_info
+
+        # 如果目录下有离线镜像，就把它导入到node节点上
+        - name: 导入 mysql-operator 的离线镜像（若执行失败，可忽略）
+          shell: "{{ bin_dir }}/docker load -i /opt/kube/rainbond/images/{{ item }}"
+          with_items:
+            - "mysql-operator.tgz"
+          ignore_errors: true
+          when: "item in image_info.stdout and CONTAINER_RUNTIME == 'docker'"
+
+        - name: 导入 mysql-operator 的离线镜像（若执行失败，可忽略）
+          shell: "{{ bin_dir }}/ctr -n=k8s.io images import /opt/kube/rainbond/images/{{ item }}"
+          with_items:
+            - "mysql-operator.tgz"
+          ignore_errors: true
+          when: "item in image_info.stdout and CONTAINER_RUNTIME == 'containerd'"
+
+    - name: 创建mysql-operator部署
+      shell: "{{ bin_dir }}/helm install mysql-operator /opt/rainbond/rainbond/mysql-operator -n rbd-system"
+      run_once: true
+
+  when: 
+  - '"mysql-operator" not in helm_info.stdout'
+  ignore_errors: true

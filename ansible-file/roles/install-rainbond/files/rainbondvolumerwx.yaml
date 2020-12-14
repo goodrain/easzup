@@ -1,0 +1,14 @@
+apiVersion: rainbond.io/v1alpha1
+kind: RainbondVolume
+metadata:
+  labels:
+    accessModes: rwx
+    belongTo: rainbond-operator
+    creator: Rainbond
+  name: rainbondvolumerwx
+  namespace: rbd-system
+spec:
+  csiPlugin:
+    nfs: {}
+  imageRepository: registry.cn-hangzhou.aliyuncs.com/goodrain
+  storageRequest: 1

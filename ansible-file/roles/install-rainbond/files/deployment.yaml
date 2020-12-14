@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: glusterfs-simple-provisioner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: glusterfs-simple-provisioner
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: glusterfs-simple-provisioner
+    spec:
+      serviceAccount: glfs-provisioner
+      containers:
+        - image: "registry.cn-huhehaote.aliyuncs.com/linux2573/glusterfs-simple-provisioner/glusterfs-simple-provisioner:latest"
+          imagePullPolicy: IfNotPresent
+          name: glusterfs-simple-provisioner

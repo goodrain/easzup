@@ -72,6 +72,7 @@
   - cluster-addon
 
 - hosts:
+  - kube-master
   - kube-node
   roles:
   - install-rainbond

@@ -2,31 +2,41 @@
 
 function ansible_image_list(){
     
-    cp ./main.yml ./ansible-file/roles/install-rainbond/tasks/main.yml
+    cp ./ansible-base/main.yml ./ansible-file/roles/install-rainbond/tasks/main.yml
+    cp ./ansible-base/rbdaio.yml ./ansible-file/roles/install-rainbond/tasks/rbdaio.yml
+    rm -rf ./ansible-file/tools && mkdir ./ansible-file/tools && cp ./ansible-base/02.addnode.yml ./ansible-file/tools/02.addnode.yml
 
     cat images_list | tr "/" ":" | awk -F":" '{print $3".tar.gz"}' | while read line ;do 
-        sed -i "/RAINBOND-IMAGE-LIST/a\            \- \"$line\"" ./ansible-file/roles/install-rainbond/tasks/main.yml ;
+        sed -i "/RAINBOND-IMAGE-LIST/a\          \- \"$line\"" ./ansible-file/roles/install-rainbond/tasks/*.yml ;
     done
 
-    sed -i "/RAINBOND-IMAGE-LIST/d" ./ansible-file/roles/install-rainbond/tasks/main.yml ;
+    cat images_list | tr "/" ":" | awk -F":" '{print $3".tar.gz"}' | while read line ;do 
+        sed -i "/RAINBOND-IMAGE-LIST/a\    \- \"$line\"" ./ansible-file/tools/*.yml ;
+    done
+
+    sed -i "/RAINBOND-IMAGE-LIST/d" ./ansible-file/roles/install-rainbond/tasks/*.yml ;
+
+    sed -i "/RAINBOND-IMAGE-LIST/d" ./ansible-file/tools/*.yml ;
 
 }
 
 function build_kubeasz_image(){
 
-    KUBEASZ_VER=2.1.0
+    KUBEASZ_VER=2.1.2
 
     ansible_image_list
 
     docker build -t registry.cn-hangzhou.aliyuncs.com/goodrain/kubeasz:${KUBEASZ_VER} .
-    docker login  --username=lius@goodrain registry.cn-hangzhou.aliyuncs.com
+    docker login  --username=lius@goodrain --password=${HUBPASS} registry.cn-hangzhou.aliyuncs.com
     docker push registry.cn-hangzhou.aliyuncs.com/goodrain/kubeasz:${KUBEASZ_VER}
+    docker logout registry.cn-hangzhou.aliyuncs.com
+    
 }
 
 function run_easzup(){
 
-    ./easzup -R
-    
+    ./easzup -R && echo -e "[INFO] \033[33mdownload successful\033[0m"
+    cd /etc/ansible && tar zcvf rainbond-offline.tgz ./* && echo -e "[INFO] \033[33mtar successful\033[0m"
 }
 
 function main() {

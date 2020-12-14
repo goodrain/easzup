@@ -6,6 +6,34 @@ items:
     labels:
       belongTo: rainbond-operator
       creator: Rainbond
+      name: dashboard-metrics-scraper
+    name: dashboard-metrics-scraper
+    namespace: rbd-system
+  spec:
+    image: {{ IMAGE_URL }}/metrics-scraper:v1.0.4
+    imagePullPolicy: IfNotPresent
+    priorityComponent: false
+    replicas: 1
+- apiVersion: rainbond.io/v1alpha1
+  kind: RbdComponent
+  metadata:
+    labels:
+      belongTo: rainbond-operator
+      creator: Rainbond
+      name: kubernetes-dashboard
+    name: kubernetes-dashboard
+    namespace: rbd-system
+  spec:
+    image: {{ IMAGE_URL }}/kubernetes-dashboard:v2.0.1-3
+    imagePullPolicy: IfNotPresent
+    priorityComponent: false
+    replicas: 1
+- apiVersion: rainbond.io/v1alpha1
+  kind: RbdComponent
+  metadata:
+    labels:
+      belongTo: rainbond-operator
+      creator: Rainbond
       name: metrics-server
     name: metrics-server
     namespace: rbd-system
@@ -17,10 +45,6 @@ items:
     replicas: 1
     type: metrics-server
     version: v0.3.6
-    pods:
-    - name: metrics-server-745cb4496f-ghvh2
-    readyReplicas: 1
-    replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
   metadata:
@@ -34,14 +58,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/nfs-provisioner:{{ RBD_VERSION }}
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: true
-    replicas: 1
-    type: nfs-provisioner
-    version: {{ RBD_VERSION }}
-    pods:
-    - name: nfs-provisioner-0
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -55,14 +72,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/rbd-api:{{ RBD_VERSION }}
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: false
-    replicas: 1
-    type: rbd-api
-    version: {{ RBD_VERSION }}
-    pods:
-    - name: rbd-api-5bd676978-p2dpp
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -76,14 +86,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/rbd-app-ui:{{ RBD_VERSION }}
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: false
-    replicas: 1
-    type: rbd-app-ui
-    version: {{ RBD_VERSION }}
-    pods:
-    - name: rbd-app-ui-54c7d44dfc-vdh97
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -97,14 +100,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/rbd-chaos:{{ RBD_VERSION }}
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: false
-    replicas: 1
-    type: rbd-chaos
-    version: {{ RBD_VERSION }}
-    pods:
-    - name: rbd-chaos-967c5
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -118,14 +114,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/rbd-db:8.0.19
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: false
-    replicas: 1
-    type: rbd-db
-    version: 8.0.19
-    pods:
-    - name: rbd-db-0
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -140,14 +129,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/etcd:v3.3.18
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: true
-    replicas: 1
-    type: rbd-etcd
-    version: v3.3.18
-    pods:
-    - name: rbd-etcd-0
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -161,14 +143,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/rbd-eventlog:{{ RBD_VERSION }}
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: false
-    replicas: 1
-    type: rbd-eventlog
-    version: {{ RBD_VERSION }}
-    pods:
-    - name: rbd-eventlog-665cf6954-cgqhq
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -183,14 +158,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/rbd-gateway:{{ RBD_VERSION }}
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: true
-    replicas: 1
-    type: rbd-gateway
-    version: {{ RBD_VERSION }}
-    pods:
-    - name: rbd-gateway-k2r8h
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -205,14 +173,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/registry:2.6.2
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: true
-    replicas: 1
-    type: rbd-hub
-    version: 2.6.2
-    pods:
-    - name: rbd-hub-85b7b94846-g89cm
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -226,14 +187,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/rbd-monitor:{{ RBD_VERSION }}
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: false
-    replicas: 1
-    type: rbd-monitor
-    version: {{ RBD_VERSION }}
-    pods:
-    - name: rbd-monitor-0
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -247,14 +201,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/rbd-mq:{{ RBD_VERSION }}
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: false
-    replicas: 1
-    type: rbd-mq
-    version: {{ RBD_VERSION }}
-    pods:
-    - name: rbd-mq-647bdf497-p6wcc
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -269,14 +216,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/rbd-node:{{ RBD_VERSION }}
     imagePullPolicy: IfNotPresent
-    logLevel: debug
     priorityComponent: true
-    replicas: 1
-    type: rbd-node
-    version: {{ RBD_VERSION }}
-    pods:
-    - name: rbd-node-p2vsq
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -290,14 +230,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/rbd-repo:6.16.0
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: false
-    replicas: 1
-    type: rbd-repo
-    version: 6.16.0
-    pods:
-    - name: rbd-repo-0
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -311,14 +244,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/rbd-webcli:{{ RBD_VERSION }}
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: false
-    replicas: 1
-    type: rbd-webcli
-    version: {{ RBD_VERSION }}
-    pods:
-    - name: rbd-webcli-68dc4c5dbc-vnl6v
-    readyReplicas: 1
     replicas: 1
 - apiVersion: rainbond.io/v1alpha1
   kind: RbdComponent
@@ -332,14 +258,7 @@ items:
   spec:
     image: {{ IMAGE_URL }}/rbd-worker:{{ RBD_VERSION }}
     imagePullPolicy: IfNotPresent
-    logLevel: info
     priorityComponent: false
-    replicas: 1
-    type: rbd-worker
-    version: {{ RBD_VERSION }}
-    pods:
-    - name: rbd-worker-6d5489bf54-8mp6d
-    readyReplicas: 1
     replicas: 1
 kind: List
 metadata:

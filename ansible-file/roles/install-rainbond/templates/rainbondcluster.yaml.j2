@@ -10,8 +10,9 @@ spec:
   configCompleted: true
   enableHA: false
   gatewayIngressIPs:
-  - {{ IIP }}
+  - {{ EIP }}
   installMode: WithoutPackage
+  installVersion: {{ RBD_VERSION }}
   installPackageConfig:
     md5: 9ca4afab83272b52b997bcfc2062f1999654c15bbbc2da1fdb1da478fbe77f83
     url: https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/5.2/rainbond.images.2020-04-16-v5.2.0-release.tgz

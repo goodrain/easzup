@@ -1,0 +1,59 @@
+- name: 准备离线安装包目录
+  file: name=/opt/kube/packages/keepalived state=directory
+
+- block:
+  - name: 分发 keepalived_xenial 离线包
+    copy:
+      src: "{{ base_dir }}/down/packages/keepalived_xenial.tar.gz"
+      dest: "/opt/kube/packages/keepalived/keepalived_xenial.tar.gz"
+
+  - name: 安装 keepalived_xenial 离线包
+    shell: 'cd /opt/kube/packages/keepalived && tar zxf keepalived_xenial.tar.gz'
+  when: ansible_distribution_release == "xenial"
+  ignore_errors: true
+
+- block:
+  - name: 分发 keepalived_bionic 离线包
+    copy:
+      src: "{{ base_dir }}/down/packages/keepalived_bionic.tar.gz"
+      dest: "/opt/kube/packages/keepalived/keepalived_bionic.tar.gz"
+
+  - name: 安装 keepalived_bionic 离线包
+    shell: 'cd /opt/kube/packages/keepalived && tar zxf keepalived_bionic.tar.gz'
+  when: ansible_distribution_release == "bionic"
+  ignore_errors: true
+
+- block:
+  - name: 分发 keepalived_centos7 离线包
+    copy:
+      src: "{{ base_dir }}/down/packages/keepalived_centos7.tar.gz"
+      dest: "/opt/kube/packages/keepalived/keepalived_centos7.tar.gz"
+
+  - name: 安装 keepalived_centos7 离线包
+    shell: 'cd /opt/kube/packages/keepalived && tar zxf keepalived_centos7.tar.gz'
+  when:
+  - 'ansible_distribution == "CentOS"'
+  - 'ansible_distribution_major_version == "7"'
+  ignore_errors: true
+
+- block:
+  - name: 分发 keepalived_stretch 离线包
+    copy:
+      src: "{{ base_dir }}/down/packages/keepalived_stretch.tar.gz"
+      dest: "/opt/kube/packages/keepalived/keepalived_stretch.tar.gz"
+
+  - name: 安装 keepalived_stretch 离线包
+    shell: 'cd /opt/kube/packages/keepalived && tar zxf keepalived_stretch.tar.gz'
+  when: ansible_distribution_release == "stretch"
+  ignore_errors: true
+
+- block:
+  - name: 分发 keepalived_buster 离线包
+    copy:
+      src: "{{ base_dir }}/down/packages/keepalived_buster.tar.gz"
+      dest: "/opt/kube/packages/keepalived/keepalived_buster.tar.gz"
+
+  - name: 安装 keepalived_buster 离线包
+    shell: 'cd /opt/kube/packages/keepalived && tar zxf keepalived_buster.tar.gz'
+  when: ansible_distribution_release == "buster"
+  ignore_errors: true

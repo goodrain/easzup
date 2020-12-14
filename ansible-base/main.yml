@@ -1,0 +1,83 @@
+- name: 创建 rainbond 相关目录
+  file: path={{ item }} state=directory
+  with_items:
+    - /opt/kube/rainbond
+    - /opt/kube/rainbond/images
+
+- name: 下载 helm 二进制文件
+  copy: src={{ base_dir }}/bin/helm dest={{ bin_dir }}/helm mode=755
+
+- name: 获取所有的 namespaces
+  command: "{{ bin_dir }}/kubectl get namespaces"
+  register: namespaces_info
+  run_once: true
+
+- name: 创建 namespace rbd-system
+  command: "{{ bin_dir }}/kubectl create namespace rbd-system"
+  when: '"rbd-system" not in namespaces_info.stdout'
+  run_once: true
+
+- name: 获取所有已经创建的operator信息
+  command: "{{ bin_dir }}/helm list -n rbd-system"
+  register: helm_info
+  run_once: true
+
+- name: 准备rainbond-operator文件
+  unarchive: src={{ base_dir }}/rainbond/rainbond-operator-chart.tgz dest=/opt/kube/rainbond
+
+# 【可选】推送离线docker 镜像，可以忽略执行错误
+- block:
+    - block:
+        - name: 检查是否已下载离线 rainbond 镜像
+          command: "ls {{ base_dir }}/rainbond/images"
+          register: download_info
+          connection: local
+          run_once: true
+
+        - name: 尝试推送离线docker 镜像（若执行失败，可忽略）
+          copy: src={{ base_dir }}/rainbond/images/{{ item }} dest=/opt/kube/rainbond/images/{{ item }}
+          when: "item in download_info.stdout"
+          with_items:
+          RAINBOND-IMAGE-LIST
+          ignore_errors: true
+
+        - name: 获取 rainbond 离线镜像推送情况
+          command: "ls /opt/kube/rainbond/images"
+          register: image_info
+
+        # 如果目录下有离线镜像，就把它导入到node节点上
+        - name: 导入 rainbond 的离线镜像（若执行失败，可忽略）
+          shell: "{{ bin_dir }}/docker load -i /opt/kube/rainbond/images/{{ item }}"
+          with_items:
+          RAINBOND-IMAGE-LIST
+          ignore_errors: true
+          when: "item in image_info.stdout and CONTAINER_RUNTIME == 'docker'"
+
+        - name: 导入 rainbond 的离线镜像（若执行失败，可忽略）
+          shell: "{{ bin_dir }}/ctr -n=k8s.io images import /opt/kube/rainbond/images/{{ item }}"
+          with_items:
+          RAINBOND-IMAGE-LIST
+          ignore_errors: true
+          when: "item in image_info.stdout and CONTAINER_RUNTIME == 'containerd'"
+
+  when: 
+  - 'INSTALL_SOURCE == "offline"'
+  - 'ALL_IN_ONE == "no"'
+  ignore_errors: true
+
+- import_tasks: rbdaio.yml
+  when:
+  - 'ALL_IN_ONE == "yes"'
+  ignore_errors: true
+
+- import_tasks: keepalived.yml
+  when:
+  - 'ALL_IN_ONE == "no"'
+  - 'INSTALL_SOURCE == "offline"'
+  
+- import_tasks: glusterfs.yml
+  when: 
+  - 'ALL_IN_ONE == "no"'
+  - 'INSTALL_SOURCE == "offline"'
+
+

@@ -1,0 +1,152 @@
+- name: 准备离线安装包目录
+  file: path={{ item }} state=directory
+  with_items:
+    - /opt/kube/packages/glusterfs
+    - /opt/kube/glusterfs
+
+- block:
+  - name: 分发 glusterfs_centos7 离线包
+    copy:
+      src: "{{ base_dir }}/down/packages/glusterfs_centos7.tar.gz"
+      dest: "/opt/kube/packages/glusterfs/glusterfs_centos7.tar.gz"
+
+  - name: 安装 glusterfs_centos7 离线包
+    shell: 'cd /opt/kube/packages/glusterfs && tar zxf glusterfs_centos7.tar.gz && \
+           rpm -Uvh --force --nodeps *.rpm > /tmp/install_glusterfs.log 2>&1'
+  when:
+  - 'ansible_distribution == "CentOS"'
+  - 'ansible_distribution_major_version == "7"'
+  ignore_errors: true
+
+- name: 加载内核模块
+  command: "modprobe dm_thin_pool"
+  ignore_errors: true
+
+- name: 检查是否已下载离线 glusterfs 镜像
+  command: "ls {{ base_dir }}/rainbond/images"
+  register: download_info
+  connection: local
+  run_once: true
+
+- name: 尝试推送离线 glusterfs 镜像（若执行失败，可忽略）
+  copy: src={{ base_dir }}/rainbond/images/{{ item }} dest=/opt/kube/rainbond/images/{{ item }}
+  when: "item in download_info.stdout"
+  with_items:
+  - gfs-provisioner.tar.gz
+  - gluster.tar.gz
+  ignore_errors: true
+
+- name: 获取 glusterfs 离线镜像推送情况
+  command: "ls /opt/kube/rainbond/images"
+  register: image_info
+
+# 如果目录下有离线镜像，就把它导入到node节点上
+- name: 导入 glusterfs 的离线镜像（若执行失败，可忽略）
+  shell: "{{ bin_dir }}/docker load -i /opt/kube/rainbond/images/{{ item }}"
+  with_items:
+  - gfs-provisioner.tar.gz
+  - gluster.tar.gz
+  ignore_errors: true
+  when: "item in image_info.stdout and CONTAINER_RUNTIME == 'docker'"
+
+- name: 导入 glusterfs1 的离线镜像（若执行失败，可忽略）
+  shell: "{{ bin_dir }}/ctr -n=k8s.io images import /opt/kube/rainbond/images/{{ item }}"
+  with_items:
+  - gfs-provisioner.tar.gz
+  - gluster.tar.gz
+  ignore_errors: true
+  when: "item in image_info.stdout and CONTAINER_RUNTIME == 'containerd'"
+
+- name: 准备 glusterfs rbac 文件
+  copy: src=rbac.yaml dest=/opt/kube/glusterfs/rbac.yaml
+
+- name: 准备 glusterfs daemonset 文件
+  copy: src=gluster-daemonset.yaml dest=/opt/kube/glusterfs/gluster-daemonset.yaml
+
+- name: 准备 glusterfs deployment 文件
+  copy: src=deployment.yaml dest=/opt/kube/glusterfs/deployment.yaml
+
+- name: 准备 glusterfs storageclass 文件
+  template: src=storageclass.yaml.j2 dest=/opt/kube/glusterfs/storageclass.yaml
+
+- name: 获取所有已经创建的 clusterrole 信息
+  command: "{{ bin_dir }}/kubectl get clusterrolebinding"
+  register: glustercluster_info
+  run_once: true
+
+- name: 创建 glusterfs clusterrole
+  command: "{{ bin_dir }}/kubectl apply -f /opt/kube/glusterfs/rbac.yaml"
+  when: 
+  - '"run-glfs-provisioner" not in glustercluster_info'
+  run_once: true
+
+- name: 设置glusterfs运行节点
+  command: "{{ bin_dir }}/kubectl label node {{ GFS1 }} {{ GFS2 }} {{ GFS3 }} storagenode=glusterfs"
+  run_once: true
+  
+- name: 获取所有已经创建的 pod 信息
+  command: "{{ bin_dir }}/kubectl get pod"
+  register: glusterpod_info
+  run_once: true
+
+- name: 创建 glusterfs daemonset 
+  command: "{{ bin_dir }}/kubectl apply -f /opt/kube/glusterfs/gluster-daemonset.yaml"
+  when: 
+  - '"glusterfs" not in glusterpod_info'
+  run_once: true
+
+- name: 等待 glusterfs1 运行，视下载镜像速度而定
+  shell: "{{ bin_dir }}/kubectl get pod -o wide|grep 'glusterfs'|grep '{{ GFS1 }}'|awk '{print $2}'"
+  register: pod_status
+  until: pod_status.stdout == "1/1"
+  retries: 15
+  delay: 8
+  ignore_errors: true
+
+- name: 轮询等待 glusterfs2 运行，视下载镜像速度而定
+  shell: "{{ bin_dir }}/kubectl get pod -o wide|grep 'glusterfs'|grep '{{ GFS2 }}'|awk '{print $2}'"
+  register: pod_status
+  until: pod_status.stdout == "1/1"
+  retries: 15
+  delay: 8
+  ignore_errors: true
+
+- name: 轮询等待 glusterfs3 运行，视下载镜像速度而定
+  shell: "{{ bin_dir }}/kubectl get pod -o wide|grep 'glusterfs'|grep '{{ GFS3 }}'|awk '{print $2}'"
+  register: pod_status
+  until: pod_status.stdout == "1/1"
+  retries: 15
+  delay: 8
+  ignore_errors: true
+
+- name: 获取 glusterfs1 pod-name
+  shell: "{{ bin_dir }}/kubectl get pod -owide | grep {{ GFS1 }} | awk '{ print $1}'"
+  register: glusterfs1
+  run_once: true
+
+- name: 添加 glusterfs 集群节点1
+  shell: "{{ bin_dir }}/kubectl exec -ti {{ glusterfs1.stdout}} gluster peer probe {{ GFS2 }}"
+  run_once: true
+  ignore_errors: true
+
+- name: 添加 glusterfs 集群节点2
+  shell: "{{ bin_dir }}/kubectl exec -ti {{ glusterfs1.stdout}} gluster peer probe {{ GFS3 }}"
+  run_once: true
+  ignore_errors: true
+  
+- name: 创建 glusterfs deploymont
+  command: "{{ bin_dir }}/kubectl apply -f /opt/kube/glusterfs/deployment.yaml"
+  when:
+  - '"glusterfs-simple-provisioner" not in glusterpod_info'
+  run_once: true
+
+- name: 获取所有已经创建的 storageclass 信息
+  command: "{{ bin_dir }}/kubectl get storageclass"
+  register: storageclass_info
+  run_once: true
+
+- name: 创建 glusterfs storageclass
+  command: "{{ bin_dir }}/kubectl apply -f /opt/kube/glusterfs/storageclass.yaml"
+  when:
+  - '"glusterfs-simple" not in storageclass_info'
+  run_once: true

@@ -9,24 +9,31 @@
 # @ref:      https://github.com/kubeasz/dockerfiles
 #--------------------------------------------------
 
-set -o nounset
+#set -o nounset
 set -o errexit
 #set -o xtrace
 
 # default version, can be overridden by cmd line options
 export DOCKER_VER=19.03.5
-export KUBEASZ_VER=2.1.0
+export KUBEASZ_VER=2.1.1
 export K8S_BIN_VER=v1.16.2
 export EXT_BIN_VER=0.3.2
 export SYS_PKG_VER=0.3.3
 export RBD_PKG_VER=5.2.0
-export RBD_CHART_URL=https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/5.2/rainbond-operator-chart-v5.2.0-release.tgz
-export MYSQL_CHART_URL=https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/5.2/mysql-operator-chart.tgz
+export RBD_CHART_URL=https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/5.2/rainbond-operator-v1.1.0-v5.2.1.tgz
 function install_docker() {
   # check if a container runtime is already installed
+  DOCKER_VERSION=0
   systemctl status containerd|grep Active|grep -q running && { echo "[ERROR] containerd is running, unsupported."; exit 1; }
-  systemctl status docker|grep Active|grep -q running && { echo "[WARN] docker is already running."; return 0; }
-
+  systemctl status docker|grep Active|grep -q running && DOCKER_VERSION=$(docker version|grep Version|tr -s [:blank:] "."|awk -F"." 'NR==2{print $3}')
+  if [ "${DOCKER_VERSION}" -ge 19 ];then
+    echo "[WARN] docker is already running."; return 0;
+  elif [ "${DOCKER_VERSION}" -eq 0 ];then
+    echo "[INFO] Start installing docker"
+  else
+    echo -e  "\033[31m[WARN] docker version should be greater than 19.x\033[0m" ; exit 1;
+  fi
+  
   DOCKER_URL="https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/docker/docker-${DOCKER_VER}.tgz"
 
   mkdir -p /opt/kube/bin /etc/docker /etc/ansible/down
@@ -174,9 +181,9 @@ function get_sys_pkg() {
   [[ -f "/etc/ansible/down/packages/chrony_xenial.tar.gz" ]] && { echo "[WARN] system packages existed"; return 0; }
 
   echo -e "[INFO] \033[33mdownloading system packages\033[0m kubeasz-sys-pkg:$SYS_PKG_VER"
-  docker pull easzlab/kubeasz-sys-pkg:${SYS_PKG_VER} && \
+  docker pull registry.cn-huhehaote.aliyuncs.com/linux2573/kubeasz-sys-pkg:${SYS_PKG_VER} && \
   echo "[INFO] run a temporary container" && \
-  docker run -d --name temp_sys_pkg easzlab/kubeasz-sys-pkg:${SYS_PKG_VER} && \
+  docker run -d --name temp_sys_pkg registry.cn-huhehaote.aliyuncs.com/linux2573/kubeasz-sys-pkg:${SYS_PKG_VER} && \
   echo "[INFO] cp system packages" && \
   docker cp temp_sys_pkg:/packages /etc/ansible/down && \
   echo "[INFO] stop&remove temporary container" && \
@@ -255,40 +262,41 @@ function get_rainbond_pkg() {
 
   rm -rf /tmp/.rainbondimages
   cat > /tmp/.rainbondimages <<EOF
-registry.cn-hangzhou.aliyuncs.com/goodrain/rainbond-operator:v1.0.0
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-op-ui:v1.0.0
+registry.cn-hangzhou.aliyuncs.com/goodrain/rainbond-operator:v1.1.0
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-op-ui:v1.1.0
 registry.cn-hangzhou.aliyuncs.com/goodrain/builder:5.2.0
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-app-ui:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-node:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-grctl:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-mesh-data-panel:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-init-probe:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-eventlog:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-worker:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-webcli:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-mq:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-monitor:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-gateway:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-chaos:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-api:v5.2.0-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-node:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-grctl:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-mesh-data-panel:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-init-probe:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-eventlog:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-worker:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-webcli:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-mq:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-monitor:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-gateway:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-chaos:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-api:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-app-ui:v5.2.1-release
+registry.cn-hangzhou.aliyuncs.com/goodrain/kubeasz-ext-bin:0.3.2
+registry.cn-hangzhou.aliyuncs.com/goodrain/rainbond-operator-sentinel:latest
+registry.cn-hangzhou.aliyuncs.com/goodrain/kubernetes-dashboard:v2.0.1-3
 registry.cn-hangzhou.aliyuncs.com/goodrain/nfs-provisioner:latest
 registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-db:8.0.19
+registry.cn-hangzhou.aliyuncs.com/goodrain/metrics-scraper:v1.0.4
 registry.cn-hangzhou.aliyuncs.com/goodrain/runner:latest
 registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-repo:6.16.0
-registry.cn-hangzhou.aliyuncs.com/goodrain/metrics-server:v0.3.6
 registry.cn-hangzhou.aliyuncs.com/goodrain/etcd:v3.3.18
-registry.cn-hangzhou.aliyuncs.com/goodrain/kube-state-metrics:latest
 registry.cn-hangzhou.aliyuncs.com/goodrain/plugins-tcm:5.1.7
 registry.cn-hangzhou.aliyuncs.com/goodrain/mysqld-exporter:latest
 registry.cn-hangzhou.aliyuncs.com/goodrain/registry:2.6.2
+registry.cn-hangzhou.aliyuncs.com/goodrain/smallimage:latest
 EOF
 
   while read image_name;do docker pull ${image_name} ;done < /tmp/.rainbondimages
 
   wget https://goodrain-pkg.oss-cn-shanghai.aliyuncs.com/pkg/helm -O /etc/ansible/bin/helm
   wget ${RBD_CHART_URL} -O /etc/ansible/rainbond/rainbond-operator-chart.tgz
-  wget ${MYSQL_CHART_URL} -O /etc/ansible/rainbond/mysql-operator-chart.tgz
-
 }
 
 function get_rainbond_image(){
@@ -305,9 +313,14 @@ function get_rainbond_image(){
 
   done < ./images_list
 
-  if [[ ! -f /etc/ansible/rainbond/images/mysql-operator.tar.gz ]];then
-    docker pull registry.cn-hangzhou.aliyuncs.com/abewang/mysql-operator:latest
-    docker save registry.cn-hangzhou.aliyuncs.com/abewang/mysql-operator:latest > /etc/ansible/rainbond/images/mysql-operator.tar.gz
+  if [[ ! -f "/etc/ansible/rainbond/images/gfs-provisioner.tar.gz" ]];then
+    docker pull registry.cn-huhehaote.aliyuncs.com/linux2573/glusterfs-simple-provisioner:latest
+    docker save registry.cn-huhehaote.aliyuncs.com/linux2573/glusterfs-simple-provisioner:latest > /etc/ansible/rainbond/images/gfs-provisioner.tar.gz
+  fi
+
+  if [[ ! -f /etc/ansible/rainbond/images/gluster.tar.gz ]];then
+    docker pull registry.cn-huhehaote.aliyuncs.com/linux2573/gluster-centos:latest
+    docker save registry.cn-huhehaote.aliyuncs.com/linux2573/gluster-centos:latest > /etc/ansible/rainbond/images/gluster.tar.gz
   fi
 
   DOCKER_URL="https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/docker/docker-${DOCKER_VER}.tgz"
@@ -353,13 +366,6 @@ function download_rainbond(){
   get_offline_image && \
   get_rainbond_pkg && \
   get_rainbond_image
-}
-
-function check_nfs(){
-    nfsstat --help > /dev/null 2>&1
-    if [ "$?" != "0" ];then
-      echo -e "[INFO] \033[31mPlease install the NFS client tool \033[0m" && exit 1
-    fi
 }
 
 function check_disk(){
@@ -417,7 +423,6 @@ function start_kubeasz_docker() {
   host_ip=$(ip a|grep "$host_if$"|awk '{print $2}'|cut -d'/' -f1)
   echo "[INFO] get host IP: $host_ip"
 
-  check_nfs
   check_cpu
   check_mem
   check_disk
@@ -448,6 +453,7 @@ function start_kubeasz_docker() {
       --name kubeasz \
       --restart always \
       --env HOST_IP="$host_ip" \
+      --env EIP="$EIP" \
       --volume /etc/ansible:/etc/ansible \
       --volume /root/.kube:/root/.kube \
       --volume /root/.ssh/id_rsa:/root/.ssh/id_rsa:ro \

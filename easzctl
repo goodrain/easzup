@@ -7,6 +7,7 @@ set -o errexit
 #set -o xtrace
 
 TEST_MODE=false
+ITYPE=`sed -nr "s#INSTALL_SOURCE: \"(.*)\"#\1#p" /etc/ansible/roles/install-rainbond/defaults/main.yml`
 
 function usage() {
     cat <<EOF
@@ -69,7 +70,7 @@ function process_cmd() {
     echo -e "[INFO] \033[33m$ACTION\033[0m : $CMD"
     $CMD || { echo -e "[ERROR] \033[31mAction failed\033[0m : $CMD"; return 1; }
     echo -e "[INFO] \033[32mAction successed\033[0m : $CMD"
-    echo -e "[INFO] \033[32mVisit http://$HOST_IP:30008 to view the installation progress\033[0m"
+    echo -e "[INFO] \033[32mVisit http://$EIP:30008 to view the installation progress\033[0m"
 }
 
 ### in-cluster operation functions ##############################
@@ -295,9 +296,21 @@ function setup() {
     echo -e "\n[INFO] setup cluster with context: $CLUSTER"
     echo -e "[INFO] setup begin in 5s, press any key to abort\n:"
     ! (read -t5 -n1 ANS) || { echo "[WARN] setup aborted"; return 1; }
-    ansible-playbook $BASEPATH/90.setup.yml || return 1
-    sed -i "s/startk8s/kubernetesok/" /tmp/rbd_install_log
-    ${TEST_MODE} || bash /tmp/rbd_install_log 2&>1 /dev/null
+    ansible-playbook $BASEPATH/90.setup.yml
+    
+    if [ "$?" != "0" ];then                                                                 
+        MESSAGE_BASE=`tail -n 5 /var/log/ansible.log | grep -B 1 FAILED |tr -d "\"|\||\n" | tr -s "*| "`
+        MESSAGE=`echo ${MESSAGE_BASE:0:1098}`
+    cat > /tmp/rbd_install_log <<EOF
+curl -H "Content-Type:application/json" --retry 3 --retry-max-time 30 -X POST --data '{"install_id": "$IID","eid": "$EID", "version": "v5.2.1-release", "install_source": "${ITYPE}k8s", "status": "k8sfailure", "message": "$MESSAGE", "is_uninstall": "0", "unitall": "", "install_way": "quick_start"}' https://log.rainbond.com/log/install
+EOF
+
+        bash /tmp/rbd_install_log > /dev/null 2>&1
+        echo > /var/log/ansible.log && exit 1
+    fi 
+    
+    sed -i "s/startk8s/k8sok/" /tmp/rbd_install_log
+    ${TEST_MODE} || bash /tmp/rbd_install_log > /dev/null 2>&1
     rm -rf /tmp/rbd_install_log
     save_context
 }
@@ -365,24 +378,28 @@ function start-aio(){
     sed -i 's#ALL_IN_ONE: "no"#ALL_IN_ONE: "yes"#g' $BASEPATH/roles/install-rainbond/defaults/main.yml
 
     sed -i "s#192.168.1.1#$HOST_IP#g" $BASEPATH/roles/install-rainbond/defaults/main.yml
+    
+    if [ ! -n "$EIP" ];then EIP=$HOST_IP;fi
+    sed -i "s#RBD_EIP#$EIP#g" $BASEPATH/roles/install-rainbond/defaults/main.yml
+
     EID=`uuidgen | tr -d -` && sed -i "s#enterprise_id#$EID#g" $BASEPATH/roles/install-rainbond/defaults/main.yml
     IID=`uuidgen | tr -d -` && sed -i "s#install_id#$IID#g" $BASEPATH/roles/install-rainbond/defaults/main.yml
 
-    cat > /tmp/rbd_install_log <<EOF
-curl -H "Content-Type:application/json" -X POST --data '{"install_id": "IID","eid": "EID", "version": "v5.2.0-release", "status": "startk8s", "message": "", "is_uninstall": "0", "unitall": "", "install_way": "quick_start"}' http://log.rainbond.com/log/install
-EOF
-
     EID=`sed -nr "s#EID: \"(.*)\"#\1#p" /etc/ansible/roles/install-rainbond/defaults/main.yml`
     IID=`sed -nr "s#IID: \"(.*)\"#\1#p" /etc/ansible/roles/install-rainbond/defaults/main.yml`
-    sed -i "s#IID#${IID}#" /tmp/rbd_install_log
-    sed -i "s#EID#${EID}#" /tmp/rbd_install_log
-    ${TEST_MODE} || bash /tmp/rbd_install_log 2&>1 /dev/null
+    MESSAGE="installing"
+
+    cat > /tmp/rbd_install_log <<EOF
+curl -H "Content-Type:application/json" --retry 3 --retry-max-time 30 -X POST --data '{"install_id": "$IID","eid": "$EID", "version": "v5.2.1-release", "install_source": "${ITYPE}k8s", "status": "startk8s", "message": "$MESSAGE", "is_uninstall": "0", "unitall": "", "install_way": "quick_start"}' https://log.rainbond.com/log/install
+EOF
+
+    ${TEST_MODE} || bash /tmp/rbd_install_log > /dev/null 2>&1
 
     DOMAIN_UUID=`uuidgen` && \
     DOMAIN_TYPE="False" && \
     AUTH=`pwgen 32 1` && \
     DOMAIN_API="http://domain.grapps.cn" && \
-    DOMAIN=`curl -s --connect-timeout 20  -d 'ip='"$HOST_IP"'&uuid='"$DOMAIN_UUID"'&type='"$DOMAIN_TYPE"'&auth='"$AUTH"'' -X POST  $DOMAIN_API/domain/new` && \
+    DOMAIN=`curl -s --connect-timeout 20  -d 'ip='"$EIP"'&uuid='"$DOMAIN_UUID"'&type='"$DOMAIN_TYPE"'&auth='"$AUTH"'' -X POST  $DOMAIN_API/domain/new` && \
     echo $DOMAIN && \
     if [ "$DOMAIN"=~"*grapps.cn" ];then
         echo $DOMAIN

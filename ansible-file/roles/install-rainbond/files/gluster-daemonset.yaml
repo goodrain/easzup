@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: glusterfs
+  labels:
+    glusterfs: deployment
+  annotations:
+    description: GlusterFS Daemon Set
+    tags: glusterfs
+spec:
+  selector:
+    matchLabels:
+      glusterfs-node: daemonset
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        glusterfs-node: daemonset
+      name: glusterfs
+    spec:
+      tolerations:
+        - key: "glusterfs"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      nodeSelector:
+        storagenode: glusterfs
+      hostNetwork: true
+      containers:
+      - env:
+        - name: TZ
+          value: Asia/Shanghai
+        image: registry.cn-huhehaote.aliyuncs.com/linux2573/gluster-centos:latest
+        imagePullPolicy: IfNotPresent
+        name: glusterfs
+        volumeMounts:
+        - mountPath: /var/lib/heketi
+          name: glusterfs-heketi
+        - mountPath: /run
+          name: glusterfs-run
+        - mountPath: /run/lvm
+          name: glusterfs-lvm
+        - mountPath: /etc/glusterfs
+          name: glusterfs-etc
+        - mountPath: /var/log/glusterfs
+          name: glusterfs-logs
+        - mountPath: /var/lib/glusterd
+          name: glusterfs-config
+        - mountPath: /dev
+          name: glusterfs-dev
+        - mountPath: /sys/fs/cgroup
+          name: glusterfs-cgroup
+        - mountPath: /data
+          name: glusterfs-data
+        securityContext:
+          capabilities: {}
+          privileged: true
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - systemctl status glusterd.service
+          initialDelaySeconds: 60
+          timeoutSeconds: 3
+        livenessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - systemctl status glusterd.service
+          failureThreshold: 3
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 3
+      volumes:
+      - hostPath:
+          path: /var/lib/heketi
+          type: ""
+        name: glusterfs-heketi
+      - emptyDir: {}
+        name: glusterfs-run
+      - hostPath:
+          path: /run/lvm
+          type: ""
+        name: glusterfs-lvm
+      - hostPath:
+          path: /etc/glusterfs
+          type: ""
+        name: glusterfs-etc
+      - hostPath:
+          path: /var/log/glusterfs
+          type: ""
+        name: glusterfs-logs
+      - hostPath:
+          path: /var/lib/glusterd
+          type: ""
+        name: glusterfs-config
+      - hostPath:
+          path: /dev
+          type: ""
+        name: glusterfs-dev
+      - hostPath:
+          path: /sys/fs/cgroup
+          type: ""
+        name: glusterfs-cgroup
+      - hostPath:
+          path: /data
+          type: ""
+        name: glusterfs-data

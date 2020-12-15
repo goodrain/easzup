@@ -9,24 +9,32 @@
 # @ref:      https://github.com/kubeasz/dockerfiles
 #--------------------------------------------------
 
-set -o nounset
+#set -o nounset
 set -o errexit
 #set -o xtrace
 
 # default version, can be overridden by cmd line options
 export DOCKER_VER=19.03.5
-export KUBEASZ_VER=2.1.0
+export KUBEASZ_VER=v5.3.0
 export K8S_BIN_VER=v1.16.2
 export EXT_BIN_VER=0.3.2
 export SYS_PKG_VER=0.3.3
 export RBD_PKG_VER=5.2.0
-export RBD_CHART_URL=https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/5.2/rainbond-operator-chart-v5.2.0-release.tgz
-export MYSQL_CHART_URL=https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/5.2/mysql-operator-chart.tgz
+export RBD_CHART_URL=https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/5.3/rainbond-operator-latest-v5.3.0.tgz
+export RBD_HUB=registry.cn-hangzhou.aliyuncs.com/goodrain
 function install_docker() {
   # check if a container runtime is already installed
+  DOCKER_VERSION=0
   systemctl status containerd|grep Active|grep -q running && { echo "[ERROR] containerd is running, unsupported."; exit 1; }
-  systemctl status docker|grep Active|grep -q running && { echo "[WARN] docker is already running."; return 0; }
-
+  systemctl status docker|grep Active|grep -q running && DOCKER_VERSION=$(docker version|grep Version|tr -s [:blank:] "."|awk -F"." 'NR==2{print $3}')
+  if [ "${DOCKER_VERSION}" -ge 19 ];then
+    echo "[WARN] docker is already running."; return 0;
+  elif [ "${DOCKER_VERSION}" -eq 0 ];then
+    echo "[INFO] Start installing docker"
+  else
+    echo -e  "\033[31m[WARN] docker version should be greater than 19.x\033[0m" ; exit 1;
+  fi
+  
   DOCKER_URL="https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/docker/docker-${DOCKER_VER}.tgz"
 
   mkdir -p /opt/kube/bin /etc/docker /etc/ansible/down
@@ -123,7 +131,7 @@ function get_kubeasz() {
 
   echo -e "[INFO] \033[33mdownloading kubeasz\033[0m $KUBEASZ_VER"
   echo "[INFO] run a temporary container"
-  docker run -d --name temp_easz registry.cn-hangzhou.aliyuncs.com/goodrain/kubeasz:${KUBEASZ_VER} || { echo "[ERROR] download failed."; exit 1; }
+  docker run -d --name temp_easz ${RBD_HUB}/kubeasz:${KUBEASZ_VER} || { echo "[ERROR] download failed."; exit 1; }
 
   [[ -f "/etc/ansible/down/docker-${DOCKER_VER}.tgz" ]] && mv "/etc/ansible/down/docker-${DOCKER_VER}.tgz" /tmp
 
@@ -144,7 +152,8 @@ function get_k8s_bin() {
   [[ -f "/etc/ansible/bin/kubelet" ]] && { echo "[WARN] kubernetes binaries existed"; return 0; }
 
   echo -e "[INFO] \033[33mdownloading kubernetes\033[0m $K8S_BIN_VER binaries"
-  docker pull easzlab/kubeasz-k8s-bin:${K8S_BIN_VER} && \
+  docker pull ${RBD_HUB}/kubeasz-k8s-bin:${K8S_BIN_VER} && \
+  docker tag ${RBD_HUB}/kubeasz-k8s-bin:${K8S_BIN_VER} easzlab/kubeasz-k8s-bin:${K8S_BIN_VER} && \
   echo "[INFO] run a temporary container" && \
   docker run -d --name temp_k8s_bin easzlab/kubeasz-k8s-bin:${K8S_BIN_VER} && \
   echo "[INFO] cp k8s binaries" && \
@@ -159,9 +168,9 @@ function get_ext_bin() {
   [[ -f "/etc/ansible/bin/etcdctl" ]] && { echo "[WARN] extral binaries existed"; return 0; }
 
   echo -e "[INFO] \033[33mdownloading extral binaries\033[0m kubeasz-ext-bin:$EXT_BIN_VER"
-  docker pull registry.cn-hangzhou.aliyuncs.com/goodrain/kubeasz-ext-bin:${EXT_BIN_VER} && \
+  docker pull ${RBD_HUB}/kubeasz-ext-bin:${EXT_BIN_VER} && \
   echo "[INFO] run a temporary container" && \
-  docker run -d --name temp_ext_bin registry.cn-hangzhou.aliyuncs.com/goodrain/kubeasz-ext-bin:${EXT_BIN_VER} && \
+  docker run -d --name temp_ext_bin ${RBD_HUB}/kubeasz-ext-bin:${EXT_BIN_VER} && \
   echo "[INFO] cp extral binaries" && \
   docker cp temp_ext_bin:/extra /extra_bin_tmp && \
   mv /extra_bin_tmp/* /etc/ansible/bin && \
@@ -174,9 +183,9 @@ function get_sys_pkg() {
   [[ -f "/etc/ansible/down/packages/chrony_xenial.tar.gz" ]] && { echo "[WARN] system packages existed"; return 0; }
 
   echo -e "[INFO] \033[33mdownloading system packages\033[0m kubeasz-sys-pkg:$SYS_PKG_VER"
-  docker pull easzlab/kubeasz-sys-pkg:${SYS_PKG_VER} && \
+  docker pull ${RBD_HUB}/kubeasz-sys-pkg:${SYS_PKG_VER} && \
   echo "[INFO] run a temporary container" && \
-  docker run -d --name temp_sys_pkg easzlab/kubeasz-sys-pkg:${SYS_PKG_VER} && \
+  docker run -d --name temp_sys_pkg ${RBD_HUB}/kubeasz-sys-pkg:${SYS_PKG_VER} && \
   echo "[INFO] cp system packages" && \
   docker cp temp_sys_pkg:/packages /etc/ansible/down && \
   echo "[INFO] stop&remove temporary container" && \
@@ -200,42 +209,30 @@ function get_offline_image() {
   echo -e "[INFO] \033[33mdownloading offline images\033[0m"
 
   if [[ ! -f "$imageDir/calico_$calicoVer.tar" ]];then
-    docker pull calico/cni:${calicoVer} && \
-    docker pull calico/kube-controllers:${calicoVer} && \
-    docker pull calico/node:${calicoVer} && \
+    docker pull ${RBD_HUB}/cni:${calicoVer} && docker tag ${RBD_HUB}/cni:${calicoVer} calico/cni:${calicoVer} && \
+    docker pull ${RBD_HUB}/kube-controllers:${calicoVer} && docker tag ${RBD_HUB}/kube-controllers:${calicoVer} calico/kube-controllers:${calicoVer} && \
+    docker pull ${RBD_HUB}/node:${calicoVer} && docker tag ${RBD_HUB}/node:${calicoVer} calico/node:${calicoVer} && \
     docker save -o ${imageDir}/calico_${calicoVer}.tar calico/cni:${calicoVer} calico/kube-controllers:${calicoVer} calico/node:${calicoVer}
   fi
   if [[ ! -f "$imageDir/coredns_$corednsVer.tar" ]];then
-    docker pull coredns/coredns:${corednsVer} && \
+    docker pull ${RBD_HUB}/coredns:${corednsVer} && docker tag ${RBD_HUB}/coredns:${corednsVer} coredns/coredns:${corednsVer} && \
     docker save -o ${imageDir}/coredns_${corednsVer}.tar coredns/coredns:${corednsVer}
   fi
-  if [[ ! -f "$imageDir/dashboard_$dashboardVer.tar" ]];then
-    docker pull kubernetesui/dashboard:${dashboardVer} && \
-    docker save -o ${imageDir}/dashboard_${dashboardVer}.tar kubernetesui/dashboard:${dashboardVer}
-  fi
   if [[ ! -f "$imageDir/flannel_$flannelVer.tar" ]];then
-    docker pull easzlab/flannel:${flannelVer} && \
+    docker pull ${RBD_HUB}/flannel:${flannelVer} && docker tag ${RBD_HUB}/flannel:${flannelVer} easzlab/flannel:${flannelVer} && \
     docker save -o ${imageDir}/flannel_${flannelVer}.tar easzlab/flannel:${flannelVer}
   fi
-  if [[ ! -f "$imageDir/metrics-scraper_$dashboardMetricsScraperVer.tar" ]];then
-    docker pull kubernetesui/metrics-scraper:${dashboardMetricsScraperVer} && \
-    docker save -o ${imageDir}/metrics-scraper_${dashboardMetricsScraperVer}.tar kubernetesui/metrics-scraper:${dashboardMetricsScraperVer}
-  fi
   if [[ ! -f "$imageDir/metrics-server_$metricsVer.tar" ]];then
-    docker pull mirrorgooglecontainers/metrics-server-amd64:${metricsVer} && \
+    docker pull ${RBD_HUB}/metrics-server-amd64:${metricsVer} && docker tag ${RBD_HUB}/metrics-server-amd64:${metricsVer} mirrorgooglecontainers/metrics-server-amd64:${metricsVer} && \
     docker save -o ${imageDir}/metrics-server_${metricsVer}.tar mirrorgooglecontainers/metrics-server-amd64:${metricsVer}
   fi
   if [[ ! -f "$imageDir/pause_$pauseVer.tar" ]];then
-    docker pull mirrorgooglecontainers/pause-amd64:${pauseVer} && \
+    docker pull ${RBD_HUB}/pause-amd64:${pauseVer} && docker tag ${RBD_HUB}/pause-amd64:${pauseVer} mirrorgooglecontainers/pause-amd64:${pauseVer} && \
     docker save -o ${imageDir}/pause_${pauseVer}.tar mirrorgooglecontainers/pause-amd64:${pauseVer}
   fi
-  if [[ ! -f "$imageDir/traefik_$traefikVer.tar" ]];then
-    docker pull traefik:${traefikVer} && \
-    docker save -o ${imageDir}/traefik_${traefikVer}.tar traefik:${traefikVer}
-  fi
   if [[ ! -f "$imageDir/kubeasz_$KUBEASZ_VER.tar" ]];then
-    docker pull registry.cn-hangzhou.aliyuncs.com/goodrain/kubeasz:${KUBEASZ_VER} && \
-    docker save -o ${imageDir}/kubeasz_${KUBEASZ_VER}.tar registry.cn-hangzhou.aliyuncs.com/goodrain/kubeasz:${KUBEASZ_VER}
+    docker pull ${RBD_HUB}/kubeasz:${KUBEASZ_VER} && \
+    docker save -o ${imageDir}/kubeasz_${KUBEASZ_VER}.tar ${RBD_HUB}/kubeasz:${KUBEASZ_VER}
   fi
 }
 
@@ -253,42 +250,10 @@ function get_rainbond_pkg() {
     rm -rf /etc/ansible/bin/helm
   fi
 
-  rm -rf /tmp/.rainbondimages
-  cat > /tmp/.rainbondimages <<EOF
-registry.cn-hangzhou.aliyuncs.com/goodrain/rainbond-operator:v1.0.0
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-op-ui:v1.0.0
-registry.cn-hangzhou.aliyuncs.com/goodrain/builder:5.2.0
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-app-ui:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-node:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-grctl:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-mesh-data-panel:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-init-probe:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-eventlog:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-worker:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-webcli:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-mq:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-monitor:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-gateway:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-chaos:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-api:v5.2.0-release
-registry.cn-hangzhou.aliyuncs.com/goodrain/nfs-provisioner:latest
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-db:8.0.19
-registry.cn-hangzhou.aliyuncs.com/goodrain/runner:latest
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-repo:6.16.0
-registry.cn-hangzhou.aliyuncs.com/goodrain/metrics-server:v0.3.6
-registry.cn-hangzhou.aliyuncs.com/goodrain/etcd:v3.3.18
-registry.cn-hangzhou.aliyuncs.com/goodrain/kube-state-metrics:latest
-registry.cn-hangzhou.aliyuncs.com/goodrain/plugins-tcm:5.1.7
-registry.cn-hangzhou.aliyuncs.com/goodrain/mysqld-exporter:latest
-registry.cn-hangzhou.aliyuncs.com/goodrain/registry:2.6.2
-EOF
-
-  while read image_name;do docker pull ${image_name} ;done < /tmp/.rainbondimages
+  while read image_name;do docker pull ${image_name} ;done < ./images_list
 
   wget https://goodrain-pkg.oss-cn-shanghai.aliyuncs.com/pkg/helm -O /etc/ansible/bin/helm
   wget ${RBD_CHART_URL} -O /etc/ansible/rainbond/rainbond-operator-chart.tgz
-  wget ${MYSQL_CHART_URL} -O /etc/ansible/rainbond/mysql-operator-chart.tgz
-
 }
 
 function get_rainbond_image(){
@@ -305,9 +270,14 @@ function get_rainbond_image(){
 
   done < ./images_list
 
-  if [[ ! -f /etc/ansible/rainbond/images/mysql-operator.tar.gz ]];then
-    docker pull registry.cn-hangzhou.aliyuncs.com/abewang/mysql-operator:latest
-    docker save registry.cn-hangzhou.aliyuncs.com/abewang/mysql-operator:latest > /etc/ansible/rainbond/images/mysql-operator.tar.gz
+  if [[ ! -f "/etc/ansible/rainbond/images/gfs-provisioner.tar.gz" ]];then
+    docker pull registry.cn-huhehaote.aliyuncs.com/linux2573/glusterfs-simple-provisioner:latest
+    docker save registry.cn-huhehaote.aliyuncs.com/linux2573/glusterfs-simple-provisioner:latest > /etc/ansible/rainbond/images/gfs-provisioner.tar.gz
+  fi
+
+  if [[ ! -f /etc/ansible/rainbond/images/gluster.tar.gz ]];then
+    docker pull registry.cn-huhehaote.aliyuncs.com/linux2573/gluster-centos:latest
+    docker save registry.cn-huhehaote.aliyuncs.com/linux2573/gluster-centos:latest > /etc/ansible/rainbond/images/gluster.tar.gz
   fi
 
   DOCKER_URL="https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/docker/docker-${DOCKER_VER}.tgz"
@@ -331,7 +301,7 @@ function get_rainbond_image(){
   sed -i 's/^INSTALL_SOURCE.*$/INSTALL_SOURCE: "offline"/g' /etc/ansible/roles/kube-node/defaults/main.yml
   sed -i 's/^INSTALL_SOURCE.*$/INSTALL_SOURCE: "offline"/g' /etc/ansible/roles/prepare/defaults/main.yml
   sed -i 's/^INSTALL_SOURCE.*$/INSTALL_SOURCE: "offline"/g' /etc/ansible/roles/install-rainbond/defaults/main.yml
-
+  sed -i 's/DOCKER/docker/g' /etc/ansible/tools/02.addnode.yml
 }
 
 function download_all() {
@@ -353,13 +323,6 @@ function download_rainbond(){
   get_offline_image && \
   get_rainbond_pkg && \
   get_rainbond_image
-}
-
-function check_nfs(){
-    nfsstat --help > /dev/null 2>&1
-    if [ "$?" != "0" ];then
-      echo -e "[INFO] \033[31mPlease install the NFS client tool \033[0m" && exit 1
-    fi
 }
 
 function check_disk(){
@@ -417,7 +380,6 @@ function start_kubeasz_docker() {
   host_ip=$(ip a|grep "$host_if$"|awk '{print $2}'|cut -d'/' -f1)
   echo "[INFO] get host IP: $host_ip"
 
-  check_nfs
   check_cpu
   check_mem
   check_disk
@@ -448,12 +410,13 @@ function start_kubeasz_docker() {
       --name kubeasz \
       --restart always \
       --env HOST_IP="$host_ip" \
+      --env EIP="$EIP" \
       --volume /etc/ansible:/etc/ansible \
       --volume /root/.kube:/root/.kube \
       --volume /root/.ssh/id_rsa:/root/.ssh/id_rsa:ro \
       --volume /root/.ssh/id_rsa.pub:/root/.ssh/id_rsa.pub:ro \
       --volume /root/.ssh/known_hosts:/root/.ssh/known_hosts:ro \
-      registry.cn-hangzhou.aliyuncs.com/goodrain/kubeasz:${KUBEASZ_VER} sleep 36000
+      ${RBD_HUB}/kubeasz:${KUBEASZ_VER} sleep 36000
 }
 
 function clean_container() {

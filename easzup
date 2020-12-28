@@ -410,6 +410,7 @@ function start_kubeasz_docker() {
 
   # get host's IP
   host_if=$(ip route|grep default|cut -d' ' -f5|head -1)
+  [ -z "$host_if" ] && echo -e "[INFO] \033[31mThe default gateway must be configured \033[0m" && exit 1
   host_ip=$(ip a|grep "$host_if$"|awk '{print $2}'|cut -d'/' -f1)
   echo "[INFO] get host IP: $host_ip"
 

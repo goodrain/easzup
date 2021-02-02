@@ -20,7 +20,7 @@ export K8S_BIN_VER=v1.16.2
 export EXT_BIN_VER=0.3.2
 export SYS_PKG_VER=0.3.3
 export RBD_PKG_VER=5.2.0
-export RBD_CHART_URL=https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/5.2/rainbond-operator-v1.1.0-v5.2.1.tgz
+export RBD_CHART_URL=https://rainbond-pkg.oss-cn-shanghai.aliyuncs.com/offline/5.2/rainbond-operator-v1.1.1-v5.2.2.tgz
 export RBD_HUB=registry.cn-hangzhou.aliyuncs.com/goodrain
 function install_docker() {
   # check if a container runtime is already installed
@@ -252,8 +252,8 @@ function get_rainbond_pkg() {
 
   rm -rf /tmp/.rainbondimages
   cat > /tmp/.rainbondimages <<EOF
-registry.cn-hangzhou.aliyuncs.com/goodrain/rainbond-operator:v1.1.0
-registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-op-ui:v1.1.0
+registry.cn-hangzhou.aliyuncs.com/goodrain/rainbond-operator:v1.1.1
+registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-op-ui:v1.1.1
 registry.cn-hangzhou.aliyuncs.com/goodrain/builder:5.2.0
 registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-node:v5.2.2-release
 registry.cn-hangzhou.aliyuncs.com/goodrain/rbd-grctl:v5.2.2-release
